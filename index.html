@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <!-- 모바일 최적화를 위한 viewport 설정 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>코캣배송 - 두더지 잡기 대작전</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+      height: 100%;
+    }
+    /* 크레딧 영역: 하단 고정 */
+    #credits {
+      width: 100%;
+      background: rgba(255,255,255,0.7);
+      text-align: center;
+      z-index: 2;
+      padding: 10px 0;
+      box-sizing: border-box;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+    }
+    #credits div {
+      font-size: 14px;
+      color: #000;
+    }
+    /* 게임 캔버스 */
+    #gameCanvas {
+      background: #eee;
+      display: block;
+      margin: 0 auto;
+      touch-action: none;  /* 브라우저 기본 터치 동작 방지 */
+    }
+    /* 시작 전 안내 화면 (오버레이) */
+    #startScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.9);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      box-sizing: border-box;
+      padding: 20px;
+    }
+    #startScreen h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+    #startScreen p {
+      font-size: 16px;
+      margin: 5px 0;
+      line-height: 1.4;
+    }
+    #startBtn {
+      margin-top: 20px;
+      font-size: 18px;
+      padding: 10px 20px;
+      background-color: #ff5e5e;
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      cursor: pointer;
+    }
+    #startBtn:hover {
+      background-color: #ff3c3c;
+    }
+    /* 게임 오버 화면 (오버레이) */
+    #gameOverScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 9999;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      box-sizing: border-box;
+      padding: 20px;
+      color: #fff;
+    }
+    #gameOverScreen .message {
+      font-size: 24px;
+      margin-bottom: 20px;
+      line-height: 1.4;
+    }
+    #restartBtn {
+      font-size: 18px;
+      padding: 10px 20px;
+      background-color: #ff9cda;
+      border: none;
+      border-radius: 20px;
+      color: #fff;
+      cursor: pointer;
+    }
+    #restartBtn:hover {
+      background-color: #f66cc7;
+    }
+  </style>
+</head>
+<body>
+  <!-- 게임 캔버스 -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- 크레딧 영역: 하단에 고정 -->
+  <div id="credits">
+    <div>유튜브 '아마란스주니할매' 저작권 콘텐츠입니다. 
+      <a href="https://www.youtube.com/@아마란스주니할매" target="_blank">https://www.youtube.com/@아마란스주니할매</a>
+    </div>
+    <div>© 2025 코켓게임즈. All rights reserved</div>
+  </div>
+
+  <!-- 시작 전 안내 화면 -->
+  <div id="startScreen">
+    <h1>❤️코켓배송 - 두더지 잡기 대작전🚚</h1>
+    <p>코켓배송을 잡으면 점수가 증가하며,<br>택배박스를 잡으면 5초가 추가됩니다.</p>
+    <p>❤️90초 게임입니다❤️</p>
+    <p>유튜브 '아마란스주니할매' 저작권 콘텐츠입니다.<br>
+    <p>© 2025 코켓게임즈. All rights reserved.<br>
+      <a href="https://www.youtube.com/@아마란스주니할매" target="_blank">https://www.youtube.com/@아마란스주니할매</a></p>
+    <button id="startBtn">게임 시작</button>
+  </div>
+
+  <!-- 게임 오버 화면 -->
+  <div id="gameOverScreen">
+    <div class="message">
+      게임 오버! 😢<br>
+      코팡 구입은 걸코와함께<br>
+      <a href="https://www.youtube.com/@Gulko" target="_blank" style="color:#fff;text-decoration:underline;">
+        https://www.youtube.com/@Gulko
+      </a><br>
+      사랑합니다. 고객님
+    </div>
+    <button id="restartBtn">다시 시작</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const credits = document.getElementById('credits');
+
+    // 캔버스 크기와 게임 그리드 재설정 함수 (모바일 및 창 크기 변화 대응)
+    function resizeCanvas() {
+      // 전체 화면 크기에 맞게 캔버스 크기 설정, 단 크레딧 영역 높이만큼 빼줍니다.
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight - credits.clientHeight;
+      
+      // 크레딧 영역은 캔버스와 분리되어 있으므로 상단 여백은 0으로 설정합니다.
+      TOP_MARGIN = 0;
+      
+      cellWidth = canvas.width / COLS;
+      cellHeight = (canvas.height - TOP_MARGIN) / ROWS;
+
+      // 각 홀의 위치 재설정
+      holes = [];
+      for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+          const cellX = col * cellWidth;
+          const cellY = TOP_MARGIN + row * cellHeight;
+          const cx = cellX + cellWidth / 2;
+          const cy = cellY + cellHeight / 2;
+          const r = Math.min(cellWidth, cellHeight) / 3;
+          holes.push({ x: cx, y: cy, r: r, cellX: cellX, cellY: cellY });
+        }
+      }
+    }
+
+    // 게임 기본 변수
+    let gameTime = 90; // 90초 게임 시간
+    let startTime = Date.now();
+    let lastSpawnTime = 0;
+    let score = 0; // 점수 변수
+    let moles = [];    // 현재 등장 중인 두더지 배열
+    let hitTexts = []; // 터치 효과 텍스트 배열
+    let gameRunning = false; // 게임 진행 여부
+
+    // 그리드 관련 변수 (초기값: 3행 4열)
+    let ROWS = 3;
+    let COLS = 4;
+    let cellWidth, cellHeight, TOP_MARGIN;
+    let holes = [];
+
+    // 이미지 로드
+    const moleImg = new Image();
+    moleImg.src = "1.png"; // 일반 두더지 이미지
+    const bonusImg = new Image();
+    bonusImg.src = "2.png"; // 보너스 두더지 이미지
+    const backImg = new Image();
+    backImg.src = "back.png"; // 배경 이미지
+
+    // 오디오 로드
+    const audioMole = new Audio("1.mp3");       // 두더지 등장 효과음
+    const audioAttack = new Audio("attack.mp3");  // 일반 터치 효과음
+    const audioBonus = new Audio("2.mp3");        // 보너스 터치 효과음
+    const bgm = new Audio("bgm.mp3");             // 배경음악
+    bgm.loop = true;
+    bgm.volume = 0.5;
+
+    // 자동 재생 제한 대응: 사용자 첫 클릭/터치 시 bgm 재생
+    let bgmStarted = false;
+    function startBGM() {
+      if (!bgmStarted) {
+        bgm.currentTime = 0;
+        bgm.play().catch(() => {});
+        bgmStarted = true;
+      }
+    }
+    canvas.addEventListener("pointerdown", startBGM);
+    document.getElementById("startBtn").addEventListener("pointerdown", startBGM);
+    document.getElementById("restartBtn").addEventListener("pointerdown", () => {
+      bgm.currentTime = 0;
+      bgm.play().catch(() => {});
+      bgmStarted = true;
+    });
+
+    // Mole 클래스 (두더지 객체)
+    class Mole {
+      constructor(holeIndex, bonus = false, elapsed = 0) {
+        this.holeIndex = holeIndex;
+        this.hole = holes[holeIndex];
+        this.bonus = bonus;
+        this.appearTime = Date.now();
+        let baseDuration = 800 + Math.random() * 400;
+        let speedFactor = Math.max(0.6, 1 - elapsed / 100);
+        this.duration = baseDuration * speedFactor;
+        this.hit = false;
+        this.moleSize = this.hole.r * 2 - 10;
+        this.baseX = this.hole.x - this.moleSize / 2;
+        this.hiddenY = this.hole.y;
+        this.visibleY = this.hole.y - this.moleSize;
+      }
+      getCurrentY() {
+        let now = Date.now();
+        let progress = (now - this.appearTime) / this.duration;
+        if (progress > 1) progress = 1;
+        if (progress < 0.5) {
+          return this.hiddenY - (progress / 0.5) * (this.hiddenY - this.visibleY);
+        } else {
+          return this.visibleY + ((progress - 0.5) / 0.5) * (this.hiddenY - this.visibleY);
+        }
+      }
+      draw() {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(this.hole.x, this.hole.y, this.hole.r, 0, Math.PI * 2);
+        ctx.clip();
+        const currentY = this.getCurrentY();
+        if (this.bonus) {
+          ctx.drawImage(bonusImg, this.baseX, currentY, this.moleSize, this.moleSize);
+        } else {
+          ctx.drawImage(moleImg, this.baseX, currentY, this.moleSize, this.moleSize);
+        }
+        ctx.restore();
+      }
+      isClicked(mx, my) {
+        const currentY = this.getCurrentY();
+        return mx >= this.baseX && mx <= this.baseX + this.moleSize &&
+               my >= currentY && my <= currentY + this.moleSize;
+      }
+    }
+
+    // 게임 루프 함수
+    function gameLoop() {
+      if (!gameRunning) return; // 게임이 진행 중일 때만 루프 실행
+
+      const now = Date.now();
+      const elapsed = (now - startTime) / 1000;
+      const remaining = gameTime - elapsed;
+      const effectiveSpawnInterval = Math.max(200, 600 - elapsed * 5);
+
+      if (remaining <= 0) {
+        gameOver();
+        return;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#eee";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(backImg, 0, TOP_MARGIN, canvas.width, canvas.height - TOP_MARGIN);
+
+      holes.forEach(hole => {
+        ctx.beginPath();
+        ctx.arc(hole.x, hole.y, hole.r, 0, Math.PI * 2);
+        ctx.fillStyle = "white";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "black";
+        ctx.stroke();
+      });
+
+      if (now - lastSpawnTime > effectiveSpawnInterval) {
+        const occupied = moles.map(m => m.holeIndex);
+        const available = holes.map((h, i) => i).filter(i => !occupied.includes(i));
+        if (available.length > 0) {
+          const index = available[Math.floor(Math.random() * available.length)];
+          const bonus = Math.random() < 0.15;
+          moles.push(new Mole(index, bonus, elapsed));
+          if (audioMole.paused) {
+            audioMole.currentTime = 0;
+            audioMole.play().catch(() => {});
+          }
+          lastSpawnTime = now;
+        }
+      }
+
+      moles = moles.filter(mole => {
+        if (now - mole.appearTime > mole.duration || mole.hit) {
+          return false;
+        }
+        mole.draw();
+        return true;
+      });
+
+      hitTexts = hitTexts.filter(ht => {
+        if (now - ht.time < ht.duration) {
+          ctx.font = "20px Arial";
+          ctx.fillStyle = ht.color;
+          ctx.fillText(ht.text, ht.x, ht.y);
+          return true;
+        }
+        return false;
+      });
+
+      ctx.font = "20px Arial";
+      ctx.fillStyle = "red";
+      ctx.fillText("Time: " + Math.max(0, Math.floor(remaining)) + " | Score: " + score, 10, TOP_MARGIN + 25);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 게임 오버 처리
+    function gameOver() {
+      gameRunning = false;
+      bgm.pause();
+      document.getElementById("gameOverScreen").style.display = 'flex';
+    }
+
+    // 게임 재시작 함수
+    function restartGame() {
+      score = 0;
+      moles = [];
+      hitTexts = [];
+      gameTime = 90;
+      startTime = Date.now();
+      lastSpawnTime = 0;
+      
+      // bgm 재생을 위해 재설정
+      bgm.currentTime = 0;
+      bgm.play().catch(() => {});
+      bgmStarted = true;
+      
+      document.getElementById("gameOverScreen").style.display = 'none';
+      gameRunning = true;
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 시작 버튼 클릭 시 게임 시작
+    document.getElementById("startBtn").addEventListener("pointerdown", function() {
+      document.getElementById("startScreen").style.display = 'none';
+      startTime = Date.now();
+      gameRunning = true;
+      requestAnimationFrame(gameLoop);
+    });
+
+    // 다시 시작 버튼 클릭 시 게임 재시작
+    document.getElementById("restartBtn").addEventListener("pointerdown", function() {
+      restartGame();
+    });
+
+    // pointerdown 이벤트 처리 (게임 중 입력)
+    canvas.addEventListener("pointerdown", function(e) {
+      if (!gameRunning) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      moles.forEach(mole => {
+        if (!mole.hit && mole.isClicked(mx, my)) {
+          mole.hit = true;
+          score++;
+          let now = Date.now();
+          if (mole.bonus) {
+            gameTime += 5;
+            hitTexts.push({ 
+              text: "샤바라", 
+              x: mole.baseX, 
+              y: mole.getCurrentY(), 
+              time: now, 
+              duration: 1000, 
+              color: "green" 
+            });
+            audioBonus.currentTime = 0;
+            audioBonus.play().catch(() => {});
+          } else {
+            hitTexts.push({ 
+              text: "분발안하냐", 
+              x: mole.baseX, 
+              y: mole.getCurrentY(), 
+              time: now, 
+              duration: 1000, 
+              color: "blue" 
+            });
+            audioAttack.currentTime = 0;
+            audioAttack.play().catch(() => {});
+          }
+        }
+      });
+    });
+
+    // 창 크기 변화 시 캔버스 재설정
+    window.addEventListener("resize", resizeCanvas);
+
+    // 초기 캔버스 크기 설정
+    resizeCanvas();
+  </script>
+</body>
+</html>
